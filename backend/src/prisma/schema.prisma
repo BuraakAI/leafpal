@@ -1,0 +1,95 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String        @id @default(uuid())
+  email              String        @unique
+  password           String
+  name               String?
+  createdAt          DateTime      @default(now())
+  trialStartedAt     DateTime?
+  trialAccepted      Boolean       @default(false)
+  isPremium          Boolean       @default(false)
+  subscriptionEndsAt DateTime?
+  plants             UserPlant[]
+  reminders          Reminder[]
+  scanHistory        ScanHistory[]
+}
+
+model PlantSpecies {
+  id                 String      @id @default(uuid())
+  scientificName     String
+  commonName         String
+  turkishName        String?
+  description        String?
+  waterFrequencyDays Int         @default(7)
+  lightRequirement   String      @default("indirect")
+  humidityLevel      String      @default("medium")
+  imageUrl           String?
+  origin             String?
+  family             String?
+  funFact            String?
+  difficulty         String      @default("medium")
+  createdAt          DateTime    @default(now())
+  plants             UserPlant[]
+  carePlans          CarePlan[]
+}
+
+model UserPlant {
+  id        String       @id @default(uuid())
+  userId    String
+  speciesId String
+  nickname  String?
+  location  String?
+  imageUrl  String?
+  notes     String?
+  addedAt   DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id])
+  species   PlantSpecies @relation(fields: [speciesId], references: [id])
+  reminders Reminder[]
+  carePlan  CarePlan?
+}
+
+model CarePlan {
+  id              String       @id @default(uuid())
+  userPlantId     String       @unique
+  speciesId       String
+  wateringDays    Int          @default(7)
+  fertilizingDays Int          @default(30)
+  repottingDays   Int          @default(365)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  userPlant       UserPlant    @relation(fields: [userPlantId], references: [id])
+  species         PlantSpecies @relation(fields: [speciesId], references: [id])
+}
+
+model Reminder {
+  id          String     @id @default(uuid())
+  userId      String
+  userPlantId String?
+  type        String
+  title       String
+  dueDate     DateTime
+  completed   Boolean    @default(false)
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  user        User       @relation(fields: [userId], references: [id])
+  userPlant   UserPlant? @relation(fields: [userPlantId], references: [id])
+}
+
+model ScanHistory {
+  id                String   @id @default(uuid())
+  userId            String
+  imageUrl          String?
+  results           String
+  selectedSpeciesId String?
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id])
+}

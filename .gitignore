@@ -1,0 +1,35 @@
+# Backend
+backend/node_modules/
+backend/dist/
+backend/uploads/
+backend/.env
+backend/src/prisma/dev.db
+backend/src/prisma/dev.db-journal
+backend/src/prisma/dev.db-shm
+backend/src/prisma/dev.db-wal
+backend/backend.log
+
+# Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+mobile/coverage/
+*.lock
+!pubspec.lock
+
+# General
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+*.iml

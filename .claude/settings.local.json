@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(flutter pub *)",
+      "Bash(npx ts-node *)",
+      "Bash(flutter run *)",
+      "Bash(flutter analyze *)",
+      "Bash(curl *)",
+      "Bash(node -e ' *)",
+      "Bash(npx prisma *)",
+      "PowerShell(Stop-Process *)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
