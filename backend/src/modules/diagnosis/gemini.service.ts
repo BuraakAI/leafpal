@@ -65,7 +65,8 @@ export async function analyzeWithGemini(
   // Gemini 2.0 Flash — v1beta, multimodal
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.geminiApiKey}`;
 
-  const response = await fetch(url, {
+  // 429 rate limit için 1 kez retry (2 sn bekle)
+  let response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -73,6 +74,18 @@ export async function analyzeWithGemini(
       generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
     }),
   });
+
+  if (response.status === 429) {
+    await new Promise((r) => setTimeout(r, 2000));
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+      }),
+    });
+  }
 
   if (!response.ok) {
     const errText = await response.text();
