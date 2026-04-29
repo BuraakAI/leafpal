@@ -108,7 +108,20 @@ export async function analyzeWithGemini(
   }
 
   const data = await response.json() as any;
-  const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  // gemini-2.5-flash is a thinking model: parts[0] may be a "thought" part (internal reasoning).
+  // The actual JSON output is in the last non-thought text part.
+  const responseParts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
+  const outputPart = [...responseParts].reverse().find((p: any) => !p.thought && typeof p.text === 'string')
+    ?? responseParts[0];
+  const text: string = outputPart?.text ?? '';
+
+  if (!text) {
+    const finishReason = data?.candidates?.[0]?.finishReason ?? 'unknown';
+    const blockReason = data?.promptFeedback?.blockReason ?? '';
+    console.error('[gemini] Empty text in response. finishReason:', finishReason, 'blockReason:', blockReason);
+    console.error('[gemini] Raw response:', JSON.stringify(data).slice(0, 600));
+  }
 
   try {
     const jsonStr = extractJson(text);
@@ -117,8 +130,8 @@ export async function analyzeWithGemini(
       'Bu rapor yapay zeka destekli analiz sonucunda olusturulmustur. Agir vakalarda uzman gorusu aliniz.';
     return parsed;
   } catch {
-    // JSON parse hatası — ham metni summary olarak göster
-    console.error('[gemini] JSON parse failed, raw text:', text.slice(0, 200));
+    // JSON parse hatası — log için daha fazla detay
+    console.error('[gemini] JSON parse failed. text length:', text.length, 'preview:', text.slice(0, 300));
     return {
       summary: 'Analiz tamamlandi ancak sonuc islenirken bir hata olustu. Lutfen tekrar deneyin.',
       issues: [],
