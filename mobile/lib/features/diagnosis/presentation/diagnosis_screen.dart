@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/di.dart';
+import '../../../core/error/app_exception.dart';
 import '../../auth/domain/trial_state.dart';
 import '../../my_plants/presentation/plants_provider.dart';
 
@@ -109,7 +110,10 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
         Future<void>.delayed(const Duration(milliseconds: 4500)),
       ]);
 
-      final data = (results[0] as dynamic).data as Map<String, dynamic>;
+      final rawData = (results[0] as dynamic).data;
+      final Map<String, dynamic> data = rawData is String
+          ? jsonDecode(rawData) as Map<String, dynamic>
+          : (rawData as Map).cast<String, dynamic>();
 
       List<_DiagnosisIssue> issuesList;
       String summary = '';
@@ -137,8 +141,11 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
         _isAiResult = useAi;
         _loading = false;
       });
+
+      // Scan hakkını güncelle
+      ref.read(trialProvider.notifier).refresh();
     } catch (e) {
-      setState(() { _loading = false; _error = 'Analiz sirasinda hata olustu. Tekrar deneyin.'; });
+      setState(() { _loading = false; _error = parseApiError(e); });
     }
   }
 

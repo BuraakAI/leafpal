@@ -33,6 +33,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--min-instances=1'
+      - '--timeout=60'
       - '--quiet'
 
 images:
