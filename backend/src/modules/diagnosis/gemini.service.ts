@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../../config/env';
 
 interface AiDiagnosisResult {
@@ -23,7 +22,6 @@ function buildPrompt(symptoms: string[], plantName?: string): string {
 
 ${plantPart}
 ${symptomPart}
-${env.geminiApiKey ? 'Eger bir bitki fotografı varsa gorsel analiz de ekle.' : ''}
 
 Lutfen asagidaki JSON formatinda yanit ver (baska hicbir sey yazma, sadece gecerli JSON):
 {
@@ -51,24 +49,46 @@ export async function analyzeWithGemini(
     throw new Error('GEMINI_API_KEY set edilmemis');
   }
 
-  const genAI = new GoogleGenerativeAI(env.geminiApiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  const prompt = buildPrompt(symptoms, plantName);
 
-  const promptText = buildPrompt(symptoms, plantName);
+  // Build parts array — include image if provided
+  const parts: any[] = [{ text: prompt }];
+  if (imageBuffer && imageMimeType) {
+    parts.unshift({
+      inline_data: {
+        mime_type: imageMimeType,
+        data: imageBuffer.toString('base64'),
+      },
+    });
+  }
 
-  const result = await model.generateContent(promptText);
-  const text = result.response.text().trim();
+  // Direct API call — avoids SDK v1beta limitation
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${env.geminiApiKey}`;
 
-  // Strip markdown code fences if present
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json() as any;
+  const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
   const jsonStr = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
 
   try {
     const parsed = JSON.parse(jsonStr) as AiDiagnosisResult;
-    // Ensure disclaimer is always set
     parsed.disclaimer = parsed.disclaimer || 'Bu analiz yapay zeka tarafindan uretilmistir. Ciddi durumlarda uzman gorusu aliniz.';
     return parsed;
   } catch {
-    // Fallback if JSON parse fails
     return {
       summary: text.slice(0, 300),
       issues: [],
