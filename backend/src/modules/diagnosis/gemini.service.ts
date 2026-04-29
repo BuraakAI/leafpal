@@ -62,8 +62,8 @@ export async function analyzeWithGemini(
     });
   }
 
-  // gemini-2.0-flash-lite: daha yuksek rate limit, multimodal destekli
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${env.geminiApiKey}`;
+  // gemini-2.5-flash: en iyi multimodal model, ayri quota
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.geminiApiKey}`;
 
   // 429 rate limit için 1 kez retry (2 sn bekle)
   let response = await fetch(url, {
