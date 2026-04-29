@@ -62,8 +62,8 @@ export async function analyzeWithGemini(
     });
   }
 
-  // gemini-1.5-flash-8b: free tier 1000 RPM (gemini-2.0-flash sadece 15 RPM)
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${env.geminiApiKey}`;
+  // gemini-2.0-flash-lite: daha yuksek rate limit, multimodal destekli
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${env.geminiApiKey}`;
 
   // 429 rate limit için 1 kez retry (2 sn bekle)
   let response = await fetch(url, {
