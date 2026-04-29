@@ -19,9 +19,11 @@ function wateringToDays(watering: string): number {
   }
 }
 
-// Perenual sunlight array → bizim format
-function sunlightToReq(sunlight: string[]): string {
-  const combined = (sunlight ?? []).join(' ').toLowerCase();
+// Perenual sunlight field — bazen string bazen array geliyor
+function sunlightToReq(sunlight: string | string[] | undefined): string {
+  const combined = Array.isArray(sunlight)
+    ? sunlight.join(' ').toLowerCase()
+    : (sunlight ?? '').toLowerCase();
   if (combined.includes('full sun'))                    return 'direct';
   if (combined.includes('full shade'))                  return 'low_to_indirect';
   if (combined.includes('part') || combined.includes('indirect')) return 'indirect';
