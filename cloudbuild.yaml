@@ -1,24 +1,23 @@
-# Cloud Build config — triggered by Cloud Run "Connect to repo"
-# Builds the backend Docker image from the /backend subdirectory.
+# Cloud Build config — uses Artifact Registry (europe-west1)
 steps:
   # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/leafpal-backend:$COMMIT_SHA'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/leafpal-backend/api:$COMMIT_SHA'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/leafpal-backend:latest'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/leafpal-backend/api:latest'
       - '-f'
       - 'backend/Dockerfile'
       - 'backend'
 
-  # Push to Container Registry
+  # Push to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
       - '--all-tags'
-      - 'gcr.io/$PROJECT_ID/leafpal-backend'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/leafpal-backend/api'
 
   # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -28,7 +27,7 @@ steps:
       - 'deploy'
       - 'leafpal'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/leafpal-backend:$COMMIT_SHA'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/leafpal-backend/api:$COMMIT_SHA'
       - '--region'
       - 'europe-west1'
       - '--platform'
@@ -37,7 +36,7 @@ steps:
       - '--quiet'
 
 images:
-  - 'gcr.io/$PROJECT_ID/leafpal-backend'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/leafpal-backend/api'
 
 options:
   logging: CLOUD_LOGGING_ONLY
