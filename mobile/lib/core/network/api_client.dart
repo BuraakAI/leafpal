@@ -27,12 +27,16 @@ class ApiClient {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = await AppStorage.instance.read(key: 'auth_token');
-        if (token != null) {
+        if (token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
+        // 401 → clear token so user is forced to re-login
+        if (error.response?.statusCode == 401) {
+          await AppStorage.instance.delete(key: 'auth_token');
+        }
         final dataMap = _parseData(error.response?.data);
         final msg = dataMap?['error'] ?? error.message ?? 'Bir hata oluştu';
         handler.reject(DioException(

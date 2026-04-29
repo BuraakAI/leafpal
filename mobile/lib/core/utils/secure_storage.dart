@@ -2,20 +2,24 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Web'de flutter_secure_storage localStorage kullanır ama
-// web options ayarlanmazsa hata verir. Bu wrapper her platformda çalışır.
+/// Token storage — uses SharedPreferences on all platforms for reliability.
+/// EncryptedSharedPreferences can corrupt after app data clear on Android.
 class AppStorage {
   static AppStorage? _instance;
   static AppStorage get instance => _instance ??= AppStorage._();
   AppStorage._();
 
-  FlutterSecureStorage? _secure;
   SharedPreferences? _prefs;
+
+  // Keep secure storage only for non-web builds that explicitly need it.
+  FlutterSecureStorage? _secure;
 
   FlutterSecureStorage get _secureStorage {
     _secure ??= const FlutterSecureStorage(
       webOptions: WebOptions(dbName: 'leafpal', publicKey: 'leafpal-key'),
-      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      // encryptedSharedPreferences disabled — causes KeyStore corruption after
+      // app data clear on Android, making token unreadable after re-login.
+      aOptions: AndroidOptions(encryptedSharedPreferences: false),
     );
     return _secure!;
   }
@@ -25,7 +29,13 @@ class AppStorage {
       final prefs = await _getPrefs();
       await prefs.setString(key, value);
     } else {
-      await _secureStorage.write(key: key, value: value);
+      try {
+        await _secureStorage.write(key: key, value: value);
+      } catch (_) {
+        // Fallback to SharedPreferences if secure storage fails
+        final prefs = await _getPrefs();
+        await prefs.setString('sp_$key', value);
+      }
     }
   }
 
@@ -34,7 +44,16 @@ class AppStorage {
       final prefs = await _getPrefs();
       return prefs.getString(key);
     } else {
-      return _secureStorage.read(key: key);
+      try {
+        final val = await _secureStorage.read(key: key);
+        if (val != null) return val;
+        // Also check SharedPreferences fallback
+        final prefs = await _getPrefs();
+        return prefs.getString('sp_$key');
+      } catch (_) {
+        final prefs = await _getPrefs();
+        return prefs.getString('sp_$key');
+      }
     }
   }
 
@@ -43,7 +62,11 @@ class AppStorage {
       final prefs = await _getPrefs();
       await prefs.remove(key);
     } else {
-      await _secureStorage.delete(key: key);
+      try {
+        await _secureStorage.delete(key: key);
+      } catch (_) {}
+      final prefs = await _getPrefs();
+      await prefs.remove('sp_$key');
     }
   }
 

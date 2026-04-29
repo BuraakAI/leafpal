@@ -26,6 +26,10 @@ router.post('/', authMiddleware, upload.single('image'), async (req: Request, re
 router.post('/ai', authMiddleware, upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Kullanici kimlik dogrulamasi gerekli.' });
+      return;
+    }
 
     // Premium check
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -41,12 +45,23 @@ router.post('/ai', authMiddleware, upload.single('image'), async (req: Request, 
     }
 
     const plantName = req.body.plantName as string | undefined;
-
     const imageBuffer = req.file?.buffer;
     const imageMimeType = req.file?.mimetype;
 
-    const result = await analyzeWithGemini(symptoms, plantName, imageBuffer, imageMimeType);
-    res.json(result);
+    try {
+      const result = await analyzeWithGemini(symptoms, plantName, imageBuffer, imageMimeType);
+      res.json(result);
+    } catch (geminiErr) {
+      // Gemini fails - fall back to rule-based so user gets something useful
+      console.error('[diagnosis] Gemini error, falling back to rule-based:', geminiErr);
+      const fallback = analyzePlant(symptoms);
+      res.json({
+        ...fallback,
+        summary: 'AI analizi gecici olarak kullanilamiyor, kural tabanli sonuc gosteriliyor.',
+        generalAdvice: '',
+        isAiFallback: true,
+      });
+    }
   } catch (err) {
     next(err);
   }
