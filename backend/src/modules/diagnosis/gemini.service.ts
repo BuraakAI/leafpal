@@ -62,8 +62,8 @@ export async function analyzeWithGemini(
     });
   }
 
-  // Gemini 2.0 Flash — v1beta, multimodal
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.geminiApiKey}`;
+  // gemini-1.5-flash-8b: free tier 1000 RPM (gemini-2.0-flash sadece 15 RPM)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${env.geminiApiKey}`;
 
   // 429 rate limit için 1 kez retry (2 sn bekle)
   let response = await fetch(url, {
@@ -76,7 +76,7 @@ export async function analyzeWithGemini(
   });
 
   if (response.status === 429) {
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 5000));
     response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
