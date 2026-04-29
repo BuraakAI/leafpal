@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Part } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../../config/env';
 
 interface AiDiagnosisResult {
@@ -52,22 +52,11 @@ export async function analyzeWithGemini(
   }
 
   const genAI = new GoogleGenerativeAI(env.geminiApiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
   const promptText = buildPrompt(symptoms, plantName);
 
-  const parts: Part[] = [{ text: promptText }];
-
-  if (imageBuffer && imageMimeType) {
-    parts.push({
-      inlineData: {
-        mimeType: imageMimeType as 'image/jpeg' | 'image/png' | 'image/webp',
-        data: imageBuffer.toString('base64'),
-      },
-    });
-  }
-
-  const result = await model.generateContent(parts);
+  const result = await model.generateContent(promptText);
   const text = result.response.text().trim();
 
   // Strip markdown code fences if present
