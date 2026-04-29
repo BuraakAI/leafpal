@@ -83,7 +83,11 @@ export async function analyzeWithGemini(
 
   const body = JSON.stringify({
     contents: [{ parts }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 2048,
+      responseMimeType: 'application/json',
+    },
   });
 
   let response = await fetch(url, {

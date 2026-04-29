@@ -30,8 +30,21 @@ function sunlightToReq(sunlight: string | string[] | undefined): string {
   return 'indirect';
 }
 
+/** Perenual species-list araması — tam isim sonuç vermezse cins adıyla tekrar dener */
+async function fetchPerenualItems(query: string): Promise<any[]> {
+  const url = `https://perenual.com/api/species-list?key=${env.perenualApiKey}&q=${encodeURIComponent(query)}&page=1`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) {
+    console.warn(`[perenual] HTTP ${res.status} for "${query}"`);
+    return [];
+  }
+  const json = await res.json() as any;
+  return json?.data ?? [];
+}
+
 /**
  * Perenual API'den bilimsel isme göre bitki verisi çeker.
+ * Türe göre sonuç bulunmazsa cins adıyla fallback yapar.
  * Hata olursa null döner (non-fatal — PlantNet verisi kullanılmaya devam eder).
  */
 export async function enrichFromPerenual(
@@ -40,17 +53,18 @@ export async function enrichFromPerenual(
   if (!env.perenualApiKey) return null;
 
   try {
-    const query = encodeURIComponent(scientificName);
-    const url = `https://perenual.com/api/species-list?key=${env.perenualApiKey}&q=${query}&page=1`;
+    // 1. Tam tür adıyla dene
+    let items = await fetchPerenualItems(scientificName);
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) {
-      console.warn(`[perenual] HTTP ${res.status} for "${scientificName}"`);
-      return null;
+    // 2. Sonuç yoksa ilk kelimeyi (cinsi) dene — örn. "Rafflesia" from "Rafflesia arnoldii"
+    if (items.length === 0) {
+      const genus = scientificName.split(' ')[0];
+      if (genus && genus !== scientificName) {
+        console.log(`[perenual] No results for "${scientificName}", retrying with genus "${genus}"`);
+        items = await fetchPerenualItems(genus);
+      }
     }
 
-    const json = await res.json() as any;
-    const items: any[] = json?.data ?? [];
     if (items.length === 0) return null;
 
     // En yakın eşleşmeyi al

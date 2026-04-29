@@ -27,7 +27,13 @@ function turkishName(scientific: string, commonNames: string[]): string {
       return TURKISH_NAMES[key];
     }
   }
-  return commonNames[0] ?? scientific;
+  // Prefer a clean English common name over raw Latin
+  if (commonNames.length > 0) {
+    // Capitalize first letter of first common name
+    const name = commonNames[0].trim();
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  return scientific;
 }
 
 function lightRequirement(tags: string[]): string {
@@ -82,7 +88,7 @@ export class PlantNetProvider implements PlantIdentificationProvider {
         commonName: common[0] ?? scientific,
         turkishName: turkishName(scientific, common),
         confidence: r.score,
-        imageUrl: r.images?.[0]?.url?.s ?? '',
+        imageUrl: r.images?.[0]?.url?.m ?? r.images?.[0]?.url?.s ?? '',
         description: `${scientific} — ${common.slice(0, 2).join(', ') || 'iç mekan bitkisi'}`,
         waterFrequencyDays: 7,
         lightRequirement: lightRequirement(r.species.gbif?.id ? ['indirect'] : []),
