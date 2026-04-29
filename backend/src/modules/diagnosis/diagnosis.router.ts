@@ -25,7 +25,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req: Request, re
 // AI diagnosis with Gemini Vision (premium only)
 router.post('/ai', authMiddleware, upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).userId as string;
+    const userId = req.user?.id;
 
     // Premium check
     const user = await prisma.user.findUnique({ where: { id: userId } });
