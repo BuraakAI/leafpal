@@ -1,9 +1,14 @@
 import 'package:flutter/foundation.dart';
 
 class ApiConstants {
-  // Web → localhost, Android emülatör → 10.0.2.2, fiziksel cihaz → LAN IP girin
+  static const String _productionUrl = 'https://leafpal-386649840420.europe-west1.run.app';
+
   static String get baseUrl {
+    // Release build → production Cloud Run
+    if (!kDebugMode) return _productionUrl;
+    // Debug web → localhost
     if (kIsWeb) return 'http://localhost:3000';
+    // Debug Android emulator → 10.0.2.2
     return 'http://10.0.2.2:3000';
   }
 
