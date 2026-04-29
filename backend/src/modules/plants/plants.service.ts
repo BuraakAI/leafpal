@@ -99,8 +99,13 @@ export async function savePlant(userId: string, body: SavePlantBody, imageFile?:
   });
 
   if (imageFile) {
-    const finalImageUrl = await saveImageFile(plant.id, imageFile);
-    await prisma.userPlant.update({ where: { id: plant.id }, data: { imageUrl: finalImageUrl } });
+    try {
+      const finalImageUrl = await saveImageFile(plant.id, imageFile);
+      await prisma.userPlant.update({ where: { id: plant.id }, data: { imageUrl: finalImageUrl } });
+    } catch (imgErr) {
+      // Non-fatal — plant is saved, image just won't be stored
+      console.error('[savePlant] Image upload failed, continuing without photo:', imgErr);
+    }
   }
 
   await prisma.carePlan.create({

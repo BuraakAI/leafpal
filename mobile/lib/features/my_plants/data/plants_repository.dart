@@ -1,9 +1,16 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/di.dart';
 import '../domain/user_plant.dart';
 import '../../plant_scan/domain/plant_match.dart';
+
+Map<String, dynamic> _toMap(dynamic raw) {
+  if (raw is Map) return raw.cast<String, dynamic>();
+  if (raw is String) return jsonDecode(raw) as Map<String, dynamic>;
+  throw FormatException('Unexpected response type: ${raw.runtimeType}');
+}
 
 final plantsRepositoryProvider = Provider<PlantsRepository>((ref) {
   return PlantsRepository(ref.read(apiClientProvider).dio);
@@ -15,7 +22,8 @@ class PlantsRepository {
 
   Future<List<UserPlant>> getPlants() async {
     final res = await _dio.get('/api/plants');
-    return (res.data as List).map((j) => UserPlant.fromJson(j as Map<String, dynamic>)).toList();
+    final list = res.data is String ? jsonDecode(res.data as String) as List : res.data as List;
+    return list.map((j) => UserPlant.fromJson(_toMap(j))).toList();
   }
 
   /// Save a scanned plant — optionally with the user's photo.
@@ -41,7 +49,7 @@ class PlantsRepository {
     }
 
     final res = await _dio.post('/api/plants', data: formData);
-    return UserPlant.fromJson(res.data as Map<String, dynamic>);
+    return UserPlant.fromJson(_toMap(res.data));
   }
 
   Future<UserPlant> addManualPlant({
@@ -65,12 +73,12 @@ class PlantsRepository {
       'waterFrequencyDays': waterFrequencyDays,
       'lightRequirement': lightRequirement,
     });
-    return UserPlant.fromJson(res.data as Map<String, dynamic>);
+    return UserPlant.fromJson(_toMap(res.data));
   }
 
   Future<UserPlant> getPlantById(String id) async {
     final res = await _dio.get('/api/plants/$id');
-    return UserPlant.fromJson(res.data as Map<String, dynamic>);
+    return UserPlant.fromJson(_toMap(res.data));
   }
 
   Future<void> deletePlant(String id) async {
@@ -86,6 +94,6 @@ class PlantsRepository {
       'image': MultipartFile.fromBytes(bytes, filename: 'photo.$ext', contentType: DioMediaType.parse(mime)),
     });
     final res = await _dio.patch('/api/plants/$plantId/photo', data: formData);
-    return UserPlant.fromJson(res.data as Map<String, dynamic>);
+    return UserPlant.fromJson(_toMap(res.data));
   }
 }

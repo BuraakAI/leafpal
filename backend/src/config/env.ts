@@ -28,4 +28,7 @@ export const env = {
 
   // Gemini AI
   geminiApiKey: process.env.GEMINI_API_KEY || '',
+
+  // Perenual (bitki fotoğraf + bakım verisi zenginleştirme)
+  perenualApiKey: process.env.PERENUAL_API_KEY || '',
 };

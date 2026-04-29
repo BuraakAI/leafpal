@@ -62,8 +62,8 @@ export async function analyzeWithGemini(
     });
   }
 
-  // Direct API call — avoids SDK v1beta limitation
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${env.geminiApiKey}`;
+  // Gemini 2.5 Flash — multimodal, faster, better reasoning
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${env.geminiApiKey}`;
 
   const response = await fetch(url, {
     method: 'POST',
