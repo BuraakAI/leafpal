@@ -15,4 +15,17 @@ export const env = {
   skipAuth: process.env.SKIP_AUTH === 'true',
   plantApiKey: process.env.PLANT_API_KEY || '',
   isDev: process.env.NODE_ENV !== 'production',
+
+  // Google Cloud Storage (eski - artık kullanılmıyor, Cloudinary'ye geçildi)
+  gcsBucket: process.env.GCS_BUCKET || '',
+  gcsProjectId: process.env.GCS_PROJECT_ID || '',
+  gcsKeyFile: process.env.GCS_KEY_FILE || '',
+
+  // Cloudinary (fotoğraf depolama)
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || '',
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || '',
+
+  // Gemini AI
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
 };

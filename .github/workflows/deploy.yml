@@ -1,0 +1,72 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-west1
+  SERVICE: leafpal-backend
+  IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/leafpal-backend
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build Docker image
+        working-directory: backend
+        run: docker build -t $IMAGE:$GITHUB_SHA -t $IMAGE:latest .
+
+      - name: Push Docker image
+        run: |
+          docker push $IMAGE:$GITHUB_SHA
+          docker push $IMAGE:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE \
+            --image $IMAGE:$GITHUB_SHA \
+            --region $REGION \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production \
+            --update-secrets DATABASE_URL=leafpal-db-url:latest \
+            --update-secrets JWT_SECRET=leafpal-jwt-secret:latest \
+            --update-secrets PLANT_API_KEY=leafpal-plant-api-key:latest \
+            --update-secrets GEMINI_API_KEY=leafpal-gemini-api-key:latest \
+            --update-secrets CLOUDINARY_CLOUD_NAME=leafpal-cloudinary-name:latest \
+            --update-secrets CLOUDINARY_API_KEY=leafpal-cloudinary-key:latest \
+            --update-secrets CLOUDINARY_API_SECRET=leafpal-cloudinary-secret:latest \
+            --min-instances 0 \
+            --max-instances 10 \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 60 \
+            --quiet
+
+      - name: Show Service URL
+        run: gcloud run services describe $SERVICE --region $REGION --format 'value(status.url)'

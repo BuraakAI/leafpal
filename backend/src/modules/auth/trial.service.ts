@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 const TRIAL_DAYS = 3;
 const DAILY_SCAN_LIMIT = 2;

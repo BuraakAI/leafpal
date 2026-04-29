@@ -1,26 +1,24 @@
 import fs from 'fs';
 import path from 'path';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
 import { SavePlantBody } from './plants.types';
+import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryEnabled } from '../storage/cloudinary.service';
+import prisma from '../../lib/prisma';
 
-// Yaygın iç mekan bitkileri için kültürel veri
 const CULTURAL_DB: Record<string, { origin: string; family: string; funFact: string; difficulty: string }> = {
-  'pistacia vera':    { origin: 'Orta Asya ve Orta Doğu', family: 'Anacardiaceae (Sakazağacı familyası)', funFact: 'Antep fıstığı binlerce yıldır Orta Doğu mutfağının vazgeçilmezidir. Meyveleri tam olgunlaşınca kabukları doğal olarak çatlar.', difficulty: 'medium' },
-  'monstera':        { origin: 'Meksika ve Orta Amerika', family: 'Araceae (Yılanotu familyası)', funFact: 'Yapraklarındaki delikler rüzgara karşı direnç için evrilmiştir. Yetişkin yapraklar 90 cm\'e ulaşabilir.', difficulty: 'easy' },
-  'ficus':           { origin: 'Güney ve Güneydoğu Asya', family: 'Moraceae (Dut familyası)', funFact: 'Ficus cinsinde 850\'den fazla tür bulunur. Tropikal ormanlarda ekosistem anahtarı bitkileri arasındadır.', difficulty: 'medium' },
-  'epipremnum':      { origin: 'Fransız Polinezyası', family: 'Araceae (Yılanotu familyası)', funFact: 'NASA\'nın temiz hava çalışmasında formaldehit ve benzeni filtreleyen en etkili bitkiler arasındadır.', difficulty: 'easy' },
-  'spathiphyllum':   { origin: 'Kolombiya ve Venezuela', family: 'Araceae (Yılanotu familyası)', funFact: 'Beyaz spatası barış sembolü olarak bilinir. Gece de nem çekerek ortamı ferahlatır.', difficulty: 'easy' },
-  'sansevieria':     { origin: 'Batı Afrika', family: 'Asparagaceae (Kuşkonmaz familyası)', funFact: 'Diğer bitkilerden farklı olarak gece de oksijen üretir. Yatak odası için idealdir.', difficulty: 'easy' },
-  'dracaena':        { origin: 'Afrika ve Asya tropikleri', family: 'Asparagaceae', funFact: 'Dracaena draco türü 6000 yıl yaşayabilir; Kanarya Adaları\'nda binlerce yıllık örnekler mevcuttur.', difficulty: 'easy' },
-  'aloe':            { origin: 'Arabistan Yarımadası', family: 'Asphodelaceae (Çiçeksiz zambak familyası)', funFact: 'Mısır\'da Kleopatra\'nın güzellik sırrı olarak kullanıldığı bilinir. Jeli yanık ve cilt tahrişlerini giderir.', difficulty: 'easy' },
-  'pothos':          { origin: 'Güneydoğu Asya', family: 'Araceae (Yılanotu familyası)', funFact: 'Işıksız ortamlarda bile yaşayabilen ender bitkilerden biri; ofis ve bodrum katlarda sıklıkla tercih edilir.', difficulty: 'easy' },
-  'philodendron':    { origin: 'Orta ve Güney Amerika tropikleri', family: 'Araceae (Yılanotu familyası)', funFact: 'Filodendron adı Yunanca "ağacı seven" anlamına gelir; doğada ağaç gövdelerine tırmanarak büyür.', difficulty: 'easy' },
-  'calathea':        { origin: 'Brezilya tropik ormanları', family: 'Marantaceae (Maranta familyası)', funFact: 'Gece yapraklarını yukarı katlayan "dua eden bitki" olarak bilinir. Bu hareket nyktinasti olarak adlandırılır.', difficulty: 'hard' },
-  'cactus':          { origin: 'Amerika kıtası çölleri', family: 'Cactaceae (Kaktüs familyası)', funFact: 'Kaktüsler 35 milyon yıl önce evrilmiştir. Gövdeleri yüzlerce litre su depolayabilir.', difficulty: 'easy' },
-  'succulents':      { origin: 'Küresel — çoğunlukla Afrika ve Amerika', family: 'Çeşitli familyalar', funFact: 'Sukulent yapraklar, su depolayan özel hücreler içerir. Kuraklıkta bu hücrelerdeki su serbest bırakılır.', difficulty: 'easy' },
-  'zamioculcas':     { origin: 'Doğu Afrika', family: 'Araceae (Yılanotu familyası)', funFact: 'ZZ bitkisi aylarca susuz kalabilir. Yaprak ve gövdelerinde su ve besin depolayan rizomları vardır.', difficulty: 'easy' },
-  'chlorophytum':    { origin: 'Güney Afrika', family: 'Asparagaceae', funFact: 'Arap otu olarak da bilinen bu bitki, 200\'den fazla yavrucuk sürgünü üretebilir. NASA listesinde hava temizleyici.', difficulty: 'easy' },
+  'monstera':      { origin: 'Meksika ve Orta Amerika', family: 'Araceae', funFact: 'Yapraklarindaki delikler ruzgara karsi direnc icin evrilmistir.', difficulty: 'easy' },
+  'ficus':         { origin: 'Guney ve Guneydogu Asya', family: 'Moraceae', funFact: 'Ficus cinsinde 850den fazla tur bulunur.', difficulty: 'medium' },
+  'epipremnum':    { origin: 'Fransiz Polinezyasi', family: 'Araceae', funFact: 'NASA temiz hava listesinde yer alir.', difficulty: 'easy' },
+  'spathiphyllum': { origin: 'Kolombiya ve Venezuela', family: 'Araceae', funFact: 'Beyaz spatas baris sembolu olarak bilinir.', difficulty: 'easy' },
+  'sansevieria':   { origin: 'Bati Afrika', family: 'Asparagaceae', funFact: 'Gece de oksijen uretir, yatak odasi icin idealdir.', difficulty: 'easy' },
+  'dracaena':      { origin: 'Afrika ve Asya tropikleri', family: 'Asparagaceae', funFact: 'Dracaena draco turu 6000 yil yasayabilir.', difficulty: 'easy' },
+  'aloe':          { origin: 'Arabistan Yarimadasi', family: 'Asphodelaceae', funFact: 'Jeli yanik ve cilt tahrisi giderir.', difficulty: 'easy' },
+  'pothos':        { origin: 'Guneydogu Asya', family: 'Araceae', funFact: 'Isiksiz ortamlarda bile yasayabilen ender bitkilerdendir.', difficulty: 'easy' },
+  'philodendron':  { origin: 'Orta ve Guney Amerika', family: 'Araceae', funFact: 'Yunanca agaci seven anlamina gelir.', difficulty: 'easy' },
+  'calathea':      { origin: 'Brezilya tropik ormanlari', family: 'Marantaceae', funFact: 'Gece yapraklarini yukari katlar — dua eden bitki.', difficulty: 'hard' },
+  'cactus':        { origin: 'Amerika kitasi colleri', family: 'Cactaceae', funFact: 'Govdeleri yuzlerce litre su depolayabilir.', difficulty: 'easy' },
+  'zamioculcas':   { origin: 'Dogu Afrika', family: 'Araceae', funFact: 'Aylarca susuz kalabilir.', difficulty: 'easy' },
+  'chlorophytum':  { origin: 'Guney Afrika', family: 'Asparagaceae', funFact: '200den fazla yavrucuk surgun uretebilir.', difficulty: 'easy' },
 };
 
 function lookupCultural(scientificName: string) {
@@ -31,22 +29,36 @@ function lookupCultural(scientificName: string) {
   return null;
 }
 
-const prisma = new PrismaClient();
 
-// Ensure uploads directory exists
 const UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'uploads', 'plants');
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!isCloudinaryEnabled()) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 
-/**
- * Save uploaded image file to disk and return the public URL path.
- */
-function saveImageFile(plantId: string, file: Express.Multer.File): string {
-  const ext = file.originalname?.split('.').pop()?.toLowerCase() || 'jpg';
+async function saveImageFile(plantId: string, file: Express.Multer.File): Promise<string> {
+  const ext = (file.originalname?.split('.').pop() || 'jpg').toLowerCase();
   const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg';
+  const mimeType = file.mimetype || 'image/jpeg';
+
+  if (isCloudinaryEnabled()) {
+    return uploadToCloudinary(file.buffer, 'leafpal/plants', plantId, mimeType);
+  }
+
+  // Local dev fallback
   const filename = `${plantId}.${safeExt}`;
   const filePath = path.join(UPLOADS_DIR, filename);
   fs.writeFileSync(filePath, file.buffer);
   return `/uploads/plants/${filename}`;
+}
+
+async function cleanupPhoto(imageUrl: string | null | undefined): Promise<void> {
+  if (!imageUrl) return;
+  if (imageUrl.includes('cloudinary.com')) {
+    await deleteFromCloudinary(imageUrl);
+  } else if (imageUrl.startsWith('/uploads/plants/')) {
+    const filePath = path.join(__dirname, '..', '..', '..', imageUrl);
+    try { fs.unlinkSync(filePath); } catch (_) { /* ignore */ }
+  }
 }
 
 export async function getPlants(userId: string) {
@@ -62,9 +74,7 @@ export async function savePlant(userId: string, body: SavePlantBody, imageFile?:
 
   if (!speciesId) {
     if (!body.scientificName) throw new AppError(400, 'speciesId veya scientificName gereklidir');
-    const existing = await prisma.plantSpecies.findFirst({
-      where: { scientificName: body.scientificName },
-    });
+    const existing = await prisma.plantSpecies.findFirst({ where: { scientificName: body.scientificName } });
     const cultural = lookupCultural(body.scientificName);
     const species = existing ?? await prisma.plantSpecies.create({
       data: {
@@ -77,33 +87,20 @@ export async function savePlant(userId: string, body: SavePlantBody, imageFile?:
         ...(cultural ?? {}),
       },
     });
-    // Mevcut tür kültürel veriden yoksunsa güncelle
     if (existing && !existing.origin && cultural) {
       await prisma.plantSpecies.update({ where: { id: existing.id }, data: cultural });
     }
     speciesId = species.id;
   }
 
-  // Create plant first (to get the ID for the filename)
   const plant = await prisma.userPlant.create({
-    data: {
-      userId,
-      speciesId,
-      nickname: body.nickname,
-      location: body.location,
-      imageUrl: body.imageUrl, // temporary — will be overwritten if file is uploaded
-    },
+    data: { userId, speciesId, nickname: body.nickname, location: body.location, imageUrl: body.imageUrl },
     include: { species: true },
   });
 
-  // If an image file was uploaded, save it and update the imageUrl
-  let finalImageUrl = plant.imageUrl;
   if (imageFile) {
-    finalImageUrl = saveImageFile(plant.id, imageFile);
-    await prisma.userPlant.update({
-      where: { id: plant.id },
-      data: { imageUrl: finalImageUrl },
-    });
+    const finalImageUrl = await saveImageFile(plant.id, imageFile);
+    await prisma.userPlant.update({ where: { id: plant.id }, data: { imageUrl: finalImageUrl } });
   }
 
   await prisma.carePlan.create({
@@ -121,68 +118,37 @@ export async function savePlant(userId: string, body: SavePlantBody, imageFile?:
     include: { species: true, carePlan: true },
   });
 
-  // Otomatik hatırlatıcılar oluştur
-  const wateringDays = body.waterFrequencyDays || savedPlant.species.waterFrequencyDays;
+  const waterDays = body.waterFrequencyDays || savedPlant.species.waterFrequencyDays;
+  const displayName = savedPlant.species.turkishName ?? savedPlant.species.commonName;
   const now = new Date();
   await prisma.reminder.createMany({
     data: [
-      {
-        userId,
-        userPlantId: plant.id,
-        type: 'watering',
-        title: `${savedPlant.species.turkishName ?? savedPlant.species.commonName} Sulaması`,
-        dueDate: new Date(now.getTime() + wateringDays * 86400000),
-      },
-      {
-        userId,
-        userPlantId: plant.id,
-        type: 'fertilizing',
-        title: `${savedPlant.species.turkishName ?? savedPlant.species.commonName} Gübrelemesi`,
-        dueDate: new Date(now.getTime() + 30 * 86400000),
-      },
+      { userId, userPlantId: plant.id, type: 'watering',    title: `${displayName} Sulamasi`,    dueDate: new Date(now.getTime() + waterDays * 86400000) },
+      { userId, userPlantId: plant.id, type: 'fertilizing', title: `${displayName} Gubrelemesi`, dueDate: new Date(now.getTime() + 30 * 86400000) },
     ],
   });
 
   return savedPlant;
 }
 
-/**
- * Upload or replace a plant's photo.
- */
 export async function uploadPlantPhoto(userId: string, plantId: string, file: Express.Multer.File) {
   const plant = await prisma.userPlant.findFirst({ where: { id: plantId, userId } });
-  if (!plant) throw new AppError(404, 'Bitki bulunamadı');
-
-  const imageUrl = saveImageFile(plantId, file);
-
-  return prisma.userPlant.update({
-    where: { id: plantId },
-    data: { imageUrl },
-    include: { species: true, carePlan: true },
-  });
+  if (!plant) throw new AppError(404, 'Bitki bulunamadi');
+  await cleanupPhoto(plant.imageUrl);
+  const imageUrl = await saveImageFile(plantId, file);
+  return prisma.userPlant.update({ where: { id: plantId }, data: { imageUrl }, include: { species: true, carePlan: true } });
 }
 
 export async function updatePlantNotes(userId: string, plantId: string, notes: string) {
   const plant = await prisma.userPlant.findFirst({ where: { id: plantId, userId } });
-  if (!plant) throw new AppError(404, 'Bitki bulunamadı');
-
-  return prisma.userPlant.update({
-    where: { id: plantId },
-    data: { notes },
-    include: { species: true, carePlan: true },
-  });
+  if (!plant) throw new AppError(404, 'Bitki bulunamadi');
+  return prisma.userPlant.update({ where: { id: plantId }, data: { notes }, include: { species: true, carePlan: true } });
 }
 
 export async function deletePlant(userId: string, plantId: string) {
   const plant = await prisma.userPlant.findFirst({ where: { id: plantId, userId } });
-  if (!plant) throw new AppError(404, 'Bitki bulunamadı');
-
-  // Clean up uploaded photo if exists
-  if (plant.imageUrl?.startsWith('/uploads/plants/')) {
-    const filePath = path.join(__dirname, '..', '..', '..', plant.imageUrl);
-    try { fs.unlinkSync(filePath); } catch { /* ignore if file doesn't exist */ }
-  }
-
+  if (!plant) throw new AppError(404, 'Bitki bulunamadi');
+  await cleanupPhoto(plant.imageUrl);
   await prisma.carePlan.deleteMany({ where: { userPlantId: plantId } });
   await prisma.reminder.deleteMany({ where: { userPlantId: plantId } });
   await prisma.userPlant.delete({ where: { id: plantId } });
@@ -191,12 +157,8 @@ export async function deletePlant(userId: string, plantId: string) {
 export async function getPlantById(userId: string, plantId: string) {
   const plant = await prisma.userPlant.findFirst({
     where: { id: plantId, userId },
-    include: {
-      species: true,
-      carePlan: true,
-      reminders: { where: { completed: false }, orderBy: { dueDate: 'asc' }, take: 5 },
-    },
+    include: { species: true, carePlan: true, reminders: { where: { completed: false }, orderBy: { dueDate: 'asc' }, take: 5 } },
   });
-  if (!plant) throw new AppError(404, 'Bitki bulunamadı');
+  if (!plant) throw new AppError(404, 'Bitki bulunamadi');
   return plant;
 }

@@ -1,12 +1,10 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { env } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 import { AuthResponse, LoginBody, RegisterBody } from './auth.types';
 import { getTrialStatus } from './trial.service';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 export async function register(body: RegisterBody): Promise<AuthResponse> {
   const existing = await prisma.user.findUnique({ where: { email: body.email } });

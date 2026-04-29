@@ -707,3 +707,124 @@ Login ekranında "Geliştirici Girişi" butonu (debug build only)
 - PlantSpecies: origin, family, funFact, difficulty alanları eklendi (schema + seed + Flutter model)
 - PlantDetailScreen: _CulturalCard widget eklendi (köken, familya, zorluk, ilginç bilgi)
 - Sonraki adım: PlantNet provider'da da funFact/family populate edilebilir; premium ekran gerçek RevenueCat bağlantısı
+
+---
+> Oturum kapandı: 2026-04-28 23:33
+
+
+---
+
+## Sprint 14 - 2026-04-29 - GCS + Cloud Run + Gemini Vision AI
+
+**Yapan:** Claude (Cowork)
+**Kapsam:** Backend deploy altyapisi, GCS fotograf depolama, Gemini Vision AI diagnosis, CI/CD
+
+### Yapılanlar
+
+#### Prisma
+- `schema.prisma` provider: `sqlite` -> `postgresql`
+
+#### Google Cloud Storage (GCS)
+- `@google-cloud/storage` paketi eklendi
+- `src/modules/storage/gcs.service.ts` olusturuldu
+  - `uploadToGCS(folder, filename, buffer, mimeType)` -> public URL
+  - `deleteFromGCS(publicUrl)` -> eski fotografi temizle
+  - `isGcsEnabled()` -> GCS_BUCKET env set mi?
+- `plants.service.ts` guncellendi: local disk -> GCS (dev'de local fallback korundu)
+- `app.ts` guncellendi: GCS aktifse static middleware kapatilir
+
+#### Gemini Vision AI Diagnosis
+- `@google/generative-ai` paketi eklendi
+- `src/modules/diagnosis/gemini.service.ts` olusturuldu
+  - Model: `gemini-2.0-flash`
+  - Fotograf + belirti + bitki adi -> Turkce JSON rapor
+  - `{ summary, issues, generalAdvice, disclaimer }` format
+- `diagnosis.router.ts` guncellendi:
+  - `POST /api/diagnosis` -> mevcut kural tabanli (ucretsiz)
+  - `POST /api/diagnosis/ai` -> Gemini Vision (premium only, trial kabul edenler dahil)
+  - Premium kontrol: `user.isPremium || user.trialAccepted`
+
+#### Dockerfile + GitHub Actions
+- `backend/Dockerfile` olusturuldu (multi-stage, node:20-alpine)
+- `backend/.dockerignore` olusturuldu
+- `.github/workflows/deploy.yml` olusturuldu
+  - Tetikleyici: `main` branch'e push (backend degisiklikleri)
+  - Workload Identity Federation ile sifresiz GCP auth
+  - GCR'a image push -> Cloud Run deploy
+  - Secrets: Google Cloud Secret Manager uzerinden
+
+#### Flutter - Diagnosis Ekrani
+- `diagnosis_screen.dart` guncellendi:
+  - Trial/premium kontrolu: premium ise `/api/diagnosis/ai`, degilse `/api/diagnosis`
+  - AI sonucu: summary karti (AI rozeti), generalAdvice karti (yesil)
+  - Kural tabanli sonuc: eski `possibleIssues` formati
+
+#### env.ts / .env.example
+- `GCS_BUCKET`, `GCS_PROJECT_ID`, `GCS_KEY_FILE`, `GEMINI_API_KEY` eklendi
+
+### Dogrulama
+- `npm run build` -> basarili
+- `flutter analyze` -> Windows'ta calistir
+
+### GCP Kurulum Adimları (senin yapman gerekenler)
+
+1. **GCS Bucket olustur:**
+   ```
+   gsutil mb -l europe-west1 gs://leafpal-uploads
+   gsutil iam ch allUsers:objectViewer gs://leafpal-uploads
+   ```
+
+2. **Gemini API Key al:** https://aistudio.google.com/app/apikey
+   - `.env` dosyasina `GEMINI_API_KEY=...` ekle
+
+3. **GitHub Secrets ekle:**
+   - `GCP_PROJECT_ID`: GCP proje ID'n
+   - `GCP_WIF_PROVIDER`: Workload Identity Provider
+   - `GCP_SA_EMAIL`: Servis hesabi emaili
+
+4. **Cloud Run servisi olustur (ilk deploy icin):**
+   ```
+   gcloud run deploy leafpal-backend --region europe-west1 --source backend/
+   ```
+
+5. **GCS_BUCKET secret'i Cloud Run'a ekle (deploy.yml zaten yapiyor)**
+
+### Sonraki Adımlar
+- RevenueCat entegrasyonu
+- Cloud SQL (production PostgreSQL)
+- Flutter production baseUrl guncellemesi
+
+
+---
+
+## Sprint 14b - 2026-04-29 - Production Deploy + Cloudinary
+
+### Degisiklikler
+- GCS yerine Cloudinary fotograf depolama secildi (web UI yeterli, CLI gerekmiyor)
+- `cloudinary.service.ts` olusturuldu, `gcs.service.ts` yedekte kaldi
+- `plants.service.ts` Cloudinary'ye gecti
+- `app.ts` Cloudinary kontrolune guncellendi
+- `.env.example` guncellendi: CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET
+- `api_constants.dart` guncellendi:
+  - Release build -> production Cloud Run URL
+  - Debug web -> localhost:3000
+  - Debug Android emulator -> 10.0.2.2:3000
+
+### Production URL
+`https://leafpal-890668370416.europe-west1.run.app`
+
+### Test komutlari (Windows terminal)
+```
+# Health check
+curl https://leafpal-890668370416.europe-west1.run.app/health
+
+# Login
+curl -X POST https://leafpal-890668370416.europe-west1.run.app/api/auth/login -H "Content-Type: application/json" -d "{"email":"demo@plant.app","password":"demo1234"}"
+
+# AI Diagnosis (token ile)
+curl -X POST https://leafpal-890668370416.europe-west1.run.app/api/diagnosis/ai -H "Authorization: Bearer TOKEN" -F "symptoms=["yellowing","wilting"]" -F "plantName=Monstera"
+```
+
+### Sonraki Adimlar
+- RevenueCat entegrasyonu
+- Cloudinary hesap ac, 3 degeri Cloud Run'a ekle

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { errorHandler } from './middleware/errorHandler';
+import { isCloudinaryEnabled } from './modules/storage/cloudinary.service';
 import healthRouter from './modules/health/health.router';
 import authRouter from './modules/auth/auth.router';
 import identificationRouter from './modules/plant-identification/identification.router';
@@ -16,8 +17,11 @@ export function createApp() {
   app.use(cors());
   app.use(express.json());
 
-  // Static file server — serves uploaded plant photos
-  app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+  // Local dev only: serve uploaded photos from disk.
+  // Production uses Cloudinary — no static serving needed.
+  if (!isCloudinaryEnabled()) {
+    app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+  }
 
   app.use('/health', healthRouter);
   app.use('/api/auth', authRouter);

@@ -1,11 +1,10 @@
-import { PrismaClient } from '@prisma/client';
 import { env } from '../../config/env';
 import { PlantIdentificationProvider } from './identification.provider';
 import { MockPlantProvider } from './mock.provider';
 import { PlantNetProvider } from './plantnet.provider';
 import { PlantMatch, ScanResult } from './identification.types';
+import prisma from '../../lib/prisma';
 
-const prisma = new PrismaClient();
 
 function getProvider(): PlantIdentificationProvider {
   if (env.plantApiKey) {

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/di.dart';
+import '../../auth/domain/trial_state.dart';
 import '../../my_plants/presentation/plants_provider.dart';
 
 // ── Models ──────────────────────────────────────────────────────────────────
@@ -71,6 +72,9 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
   String? _error;
   List<_DiagnosisIssue> _issues = [];
   String _disclaimer = '';
+  String _summary = '';
+  String _generalAdvice = '';
+  bool _isAiResult = false;
   final _picker = ImagePicker();
 
   Future<void> _pickImage(ImageSource source) async {
@@ -81,41 +85,66 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
   Future<void> _analyze() async {
     setState(() { _loading = true; _error = null; _step = 2; });
     try {
-      final dio = ref.read(apiClientProvider).dio;
-      final formData = FormData.fromMap({
+      final trial = ref.read(trialProvider);
+      final useAi = (trial.isPremium || trial.isTrialAccepted) && _image != null;
+      final endpoint = useAi ? '/api/diagnosis/ai' : '/api/diagnosis';
 
+      final dio = ref.read(apiClientProvider).dio;
+      final plantName = (_selectedPlant?['nickname'] as String?) ??
+          ((_selectedPlant?['species'] as Map<String, dynamic>?)?['turkishName'] as String?) ?? '';
+
+      final formData = FormData.fromMap({
         'symptoms': jsonEncode(_selected.toList()),
-        if (_selectedPlant != null)
-          'plantName': (_selectedPlant!['nickname'] as String?) ??
-              (_selectedPlant!['species'] as Map<String, dynamic>?)?['turkishName'] as String? ?? '',
-        'image': MultipartFile.fromBytes(
-          await _image!.readAsBytes(),
-          filename: 'diagnosis.jpg',
-        ),
+        if (plantName.isNotEmpty) 'plantName': plantName,
+        if (_image != null)
+          'image': MultipartFile.fromBytes(
+            await _image!.readAsBytes(),
+            filename: 'diagnosis.jpg',
+          ),
       });
-      // Minimum 4.5 sn — animasyon eksiksiz görünsün
+
+      // Minimum 4.5 sn — animasyon eksiksiz gorünsün
       final results = await Future.wait<dynamic>([
-        dio.post('/api/diagnosis', data: formData),
+        dio.post(endpoint, data: formData),
         Future<void>.delayed(const Duration(milliseconds: 4500)),
       ]);
-      final res = results[0] as dynamic;
-      final data = res.data as Map<String, dynamic>;
-      final issuesList = (data['possibleIssues'] as List)
-          .map((e) => _DiagnosisIssue.fromJson(e as Map<String, dynamic>))
-          .toList();
+
+      final data = (results[0] as dynamic).data as Map<String, dynamic>;
+
+      List<_DiagnosisIssue> issuesList;
+      String summary = '';
+      String generalAdvice = '';
+
+      if (useAi) {
+        // AI endpoint: { summary, issues, generalAdvice, disclaimer }
+        issuesList = ((data['issues'] as List?) ?? [])
+            .map((e) => _DiagnosisIssue.fromJson(e as Map<String, dynamic>))
+            .toList();
+        summary = data['summary'] as String? ?? '';
+        generalAdvice = data['generalAdvice'] as String? ?? '';
+      } else {
+        // Rule-based endpoint: { possibleIssues, disclaimer }
+        issuesList = ((data['possibleIssues'] as List?) ?? [])
+            .map((e) => _DiagnosisIssue.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+
       setState(() {
         _issues = issuesList;
         _disclaimer = data['disclaimer'] as String? ?? '';
+        _summary = summary;
+        _generalAdvice = generalAdvice;
+        _isAiResult = useAi;
         _loading = false;
       });
     } catch (e) {
-      setState(() { _loading = false; _error = 'Analiz sırasında hata oluştu. Tekrar deneyin.'; });
+      setState(() { _loading = false; _error = 'Analiz sirasinda hata olustu. Tekrar deneyin.'; });
     }
   }
 
   void _reset() => setState(() {
     _step = 0; _image = null; _selectedPlant = null;
-    _selected.clear(); _issues = []; _error = null;
+    _selected.clear(); _issues = []; _error = null; _summary = ''; _generalAdvice = ''; _isAiResult = false;
   });
 
   @override
@@ -143,6 +172,9 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
               error: _error,
               issues: _issues,
               disclaimer: _disclaimer,
+              summary: _summary,
+              generalAdvice: _generalAdvice,
+              isAiResult: _isAiResult,
               cs: cs,
               onReset: _reset,
             ),
@@ -800,6 +832,9 @@ class _StepResult extends StatelessWidget {
   final String? error;
   final List<_DiagnosisIssue> issues;
   final String disclaimer;
+  final String summary;
+  final String generalAdvice;
+  final bool isAiResult;
   final ColorScheme cs;
   final VoidCallback onReset;
 
@@ -808,6 +843,9 @@ class _StepResult extends StatelessWidget {
     required this.error,
     required this.issues,
     required this.disclaimer,
+    required this.summary,
+    required this.generalAdvice,
+    required this.isAiResult,
     required this.cs,
     required this.onReset,
   });
@@ -884,6 +922,41 @@ class _StepResult extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               children: [
+                if (isAiResult && summary.isNotEmpty) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [cs.primary.withValues(alpha: 0.12), cs.primary.withValues(alpha: 0.04)],
+                        begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: cs.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
+                          child: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.white),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('AI Analizi', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
+                              const SizedBox(height: 4),
+                              Text(summary, style: GoogleFonts.manrope(fontSize: 14, color: cs.onSurface, height: 1.5)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 ...issues.map((issue) => Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
@@ -943,9 +1016,37 @@ class _StepResult extends StatelessWidget {
                     ],
                   ),
                 )),
+                if (isAiResult && generalAdvice.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.eco_rounded, size: 18, color: Color(0xFF4CAF50)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Genel Tavsiye', style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF4CAF50))),
+                              const SizedBox(height: 4),
+                              Text(generalAdvice, style: GoogleFonts.manrope(fontSize: 13, color: cs.onSurface, height: 1.45)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (disclaimer.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       disclaimer,
                       style: GoogleFonts.manrope(fontSize: 12, color: cs.outline, height: 1.4),

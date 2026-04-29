@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
+import prisma from '../../lib/prisma';
 
-const prisma = new PrismaClient();
 
 export async function getReminders(userId: string) {
   return prisma.reminder.findMany({

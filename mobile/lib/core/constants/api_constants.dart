@@ -8,10 +8,10 @@ class ApiConstants {
     if (!kDebugMode) return _productionUrl;
     // Debug web → localhost
     if (kIsWeb) return 'http://localhost:3000';
-    // Debug Android emulator → 10.0.2.2
-    return 'http://10.0.2.2:3000';
+    // Debug Android emulator → production (for testing Cloud Run)
+    return _productionUrl;
   }
 
-  static const Duration connectTimeout = Duration(seconds: 15);
-  static const Duration receiveTimeout = Duration(seconds: 30);
+  static const Duration connectTimeout = Duration(seconds: 30);
+  static const Duration receiveTimeout = Duration(seconds: 60);
 }
