@@ -57,6 +57,8 @@ router.post('/ai', authMiddleware, upload.single('image'), async (req: Request, 
       const fallback = analyzePlant(symptoms);
       res.json({
         ...fallback,
+        // Flutter's AI branch reads `issues`; rule-based uses `possibleIssues` — bridge both
+        issues: fallback.possibleIssues,
         summary: 'AI analizi gecici olarak kullanilamiyor, kural tabanli sonuc gosteriliyor.',
         generalAdvice: '',
         isAiFallback: true,
